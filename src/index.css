@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --color-primary: #4A90E2;
+  --color-accent: #FF9500;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+}
+
+@layer base {
+  * {
+    @apply border-slate-200;
+  }
+}
+
+.sleek-shadow {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.sleek-gradient-text {
+  background: linear-gradient(135deg, #4A90E2 0%, #FF9500 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sleek-ai-panel {
+  background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%);
+  border: 1px solid #dbeafe;
+}
+
