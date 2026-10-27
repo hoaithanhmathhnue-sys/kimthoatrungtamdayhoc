@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { GradeRecord } from '../types';
-import { Plus, Trash2, BookMarked, Award, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, BookMarked, Award, TrendingUp, Edit2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -15,6 +15,7 @@ const DEFAULT_SUBJECTS = ['Toán', 'Lý', 'Hóa', 'Sinh', 'Anh', 'Văn', 'Sử',
 const Grades: React.FC = () => {
     const { data, updateData } = useAppContext();
     const [isAdding, setIsAdding] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [filterStudent, setFilterStudent] = useState<string>('all');
     const [filterClass, setFilterClass] = useState<string>('all');
     const [formData, setFormData] = useState<Partial<GradeRecord>>({
@@ -36,11 +37,27 @@ const Grades: React.FC = () => {
         if (formData.score === undefined || formData.score < 0 || formData.score > 10) return Swal.fire('Lỗi', 'Điểm phải từ 0 đến 10', 'error');
 
         updateData(prev => ({
-            grades: [...prev.grades, { ...formData, id: uuidv4() } as GradeRecord]
+            grades: editingId
+                ? prev.grades.map(g => g.id === editingId ? { ...g, ...formData } as GradeRecord : g)
+                : [...prev.grades, { ...formData, id: uuidv4() } as GradeRecord]
         }));
         setIsAdding(false);
+        setEditingId(null);
         setFormData({ studentId: '', classId: '', subject: '', examType: EXAM_TYPES[0], score: 0, date: dayjs().format('YYYY-MM-DD'), note: '' });
-        Swal.fire('Thành công', 'Đã lưu kết quả', 'success');
+        Swal.fire('Thành công', editingId ? 'Đã cập nhật kết quả' : 'Đã lưu kết quả', 'success');
+    };
+
+    const openEdit = (g: GradeRecord) => {
+        setEditingId(g.id);
+        setFormData({ ...g });
+        setIsAdding(true);
+    };
+
+    const openAdd = () => {
+        if (isAdding) { setIsAdding(false); setEditingId(null); return; }
+        setEditingId(null);
+        setFormData({ studentId: '', classId: '', subject: '', examType: EXAM_TYPES[0], score: 0, date: dayjs().format('YYYY-MM-DD'), note: '' });
+        setIsAdding(true);
     };
 
     const handleDelete = (id: string) => {
@@ -81,7 +98,7 @@ const Grades: React.FC = () => {
                 <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                     <BookMarked className="w-7 h-7 text-primary" /> Kết quả Học tập
                 </h2>
-                <Button onClick={() => setIsAdding(!isAdding)} className="gap-2">
+                <Button onClick={openAdd} className="gap-2">
                     {isAdding ? '✕ Hủy' : <><Plus className="w-4 h-4" /> Nhập điểm</>}
                 </Button>
             </div>
@@ -108,7 +125,7 @@ const Grades: React.FC = () => {
 
             {isAdding && (
                 <Card className="border-blue-200">
-                    <CardHeader><CardTitle>Nhập Điểm Kiểm Tra</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>{editingId ? 'Sửa kết quả kiểm tra' : 'Nhập Điểm Kiểm Tra'}</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div>
@@ -152,8 +169,8 @@ const Grades: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex justify-end pt-4 gap-3">
-                            <Button variant="outline" onClick={() => setIsAdding(false)}>Hủy bỏ</Button>
-                            <Button onClick={handleSave}>Lưu điểm</Button>
+                            <Button variant="outline" onClick={() => { setIsAdding(false); setEditingId(null); }}>Hủy bỏ</Button>
+                            <Button onClick={handleSave}>{editingId ? 'Cập nhật' : 'Lưu điểm'}</Button>
                         </div>
                     </CardContent>
                 </Card>
@@ -184,7 +201,7 @@ const Grades: React.FC = () => {
                                 <th className="px-5 py-3 text-center">Điểm</th>
                                 <th className="px-5 py-3 text-center">Xếp loại</th>
                                 <th className="px-5 py-3">Ghi chú</th>
-                                <th className="px-5 py-3 w-12"></th>
+                                <th className="px-5 py-3 w-20"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -200,8 +217,11 @@ const Grades: React.FC = () => {
                                     </td>
                                     <td className="px-5 py-3 text-center text-xs font-medium text-slate-600">{getGrade(g.score)}</td>
                                     <td className="px-5 py-3 text-slate-500 text-xs max-w-[150px] truncate">{g.note || '-'}</td>
-                                    <td className="px-5 py-3">
-                                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 px-1 h-7" onClick={() => handleDelete(g.id)}>
+                                    <td className="px-5 py-3 whitespace-nowrap">
+                                        <Button variant="ghost" size="sm" className="text-blue-500 hover:text-blue-700 px-1 h-7" title="Sửa" onClick={() => openEdit(g)}>
+                                            <Edit2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 px-1 h-7" title="Xóa" onClick={() => handleDelete(g.id)}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </Button>
                                     </td>

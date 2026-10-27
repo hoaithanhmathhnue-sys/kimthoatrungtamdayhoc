@@ -330,7 +330,7 @@ const Classes: React.FC = () => {
 
           return (
             <Card key={c.id} className="hover:shadow-md transition-shadow relative overflow-hidden group cursor-pointer" onClick={() => setSelectedClass(c)}>
-              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              <div className="absolute top-3 right-3 flex gap-1 z-10">
                 <Button variant="ghost" className="h-8 w-8 p-0 text-blue-500 bg-white/80 hover:bg-blue-50 backdrop-blur" onClick={(e) => openEdit(c, e)}>
                   <Edit2 className="w-4 h-4" />
                 </Button>
@@ -338,7 +338,7 @@ const Classes: React.FC = () => {
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
-              <CardHeader className="bg-gradient-to-br from-blue-50 to-[#fdfbfb] pb-4 border-b border-blue-100/50">
+              <CardHeader className="bg-gradient-to-br from-blue-50 to-white pb-4 border-b border-blue-100/50">
                 <div className="flex justify-between items-start pr-16">
                   <div>
                     <h3 className="text-lg font-bold text-blue-900 group-hover:text-blue-700 transition-colors">{c.code ? `[${c.code}] ` : ''}{c.name}</h3>

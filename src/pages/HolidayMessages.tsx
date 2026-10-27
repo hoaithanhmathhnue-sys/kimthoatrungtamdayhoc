@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Holiday, ParentMessage } from '../types';
-import { CalendarOff, Plus, Trash2, Bell } from 'lucide-react';
+import { CalendarOff, Plus, Trash2, Bell, Edit2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -13,6 +13,7 @@ import { buildMessage, greetingFor, resolveRecipient, CENTER_SHORT_NAME } from '
 const HolidayMessages: React.FC = () => {
     const { data, updateData, logActivity } = useAppContext();
     const [isAddingHoliday, setIsAddingHoliday] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [holidayForm, setHolidayForm] = useState<Partial<Holiday>>({
         name: '', startDate: dayjs().format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD'), note: ''
     });
@@ -22,15 +23,33 @@ const HolidayMessages: React.FC = () => {
         if (!holidayForm.name) return Swal.fire('Lỗi', 'Vui lòng nhập tên ngày nghỉ', 'error');
         if ((holidayForm.endDate || '') < (holidayForm.startDate || '')) return Swal.fire('Lỗi', 'Ngày kết thúc phải sau ngày bắt đầu', 'error');
         updateData(prev => ({
-            holidays: [...prev.holidays, { ...holidayForm, id: uuidv4() } as Holiday]
+            holidays: editingId
+                ? prev.holidays.map(h => h.id === editingId ? { ...h, ...holidayForm } as Holiday : h)
+                : [...prev.holidays, { ...holidayForm, id: uuidv4() } as Holiday]
         }));
         setIsAddingHoliday(false);
+        setEditingId(null);
         setHolidayForm({ name: '', startDate: dayjs().format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD'), note: '' });
-        Swal.fire('Thành công', 'Đã thêm ngày nghỉ', 'success');
+        Swal.fire('Thành công', editingId ? 'Đã cập nhật ngày nghỉ' : 'Đã thêm ngày nghỉ', 'success');
     };
 
-    const deleteHoliday = (id: string) => {
-        updateData(prev => ({ holidays: prev.holidays.filter(h => h.id !== id) }));
+    const openEdit = (h: Holiday) => {
+        setEditingId(h.id);
+        setHolidayForm({ ...h });
+        setIsAddingHoliday(true);
+    };
+
+    const toggleAdd = () => {
+        if (isAddingHoliday) { setIsAddingHoliday(false); setEditingId(null); return; }
+        setEditingId(null);
+        setHolidayForm({ name: '', startDate: dayjs().format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD'), note: '' });
+        setIsAddingHoliday(true);
+    };
+
+    const deleteHoliday = (h: Holiday) => {
+        Swal.fire({ title: `Xóa ngày nghỉ "${h.name}"?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Xóa', cancelButtonText: 'Hủy' }).then(r => {
+            if (r.isConfirmed) updateData(prev => ({ holidays: prev.holidays.filter(x => x.id !== h.id) }));
+        });
     };
 
     const lessonsInHoliday = (h: Holiday) => data.lessons.filter(l => l.status === 'scheduled' && l.date >= h.startDate && l.date <= h.endDate);
@@ -71,7 +90,7 @@ const HolidayMessages: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-800">Lịch nghỉ</h2>
                     <p className="text-sm text-slate-500 mt-1">Ngày nghỉ được bỏ qua khi tạo lịch học tự động. Các thông báo khác soạn tại mục Liên lạc & Phản hồi.</p>
                 </div>
-                <Button onClick={() => setIsAddingHoliday(!isAddingHoliday)} className="gap-2 shrink-0">
+                <Button onClick={toggleAdd} className="gap-2 shrink-0">
                     {isAddingHoliday ? '✕ Hủy' : <><Plus className="w-4 h-4" /> Thêm ngày nghỉ</>}
                 </Button>
             </div>
@@ -85,7 +104,7 @@ const HolidayMessages: React.FC = () => {
                             <div><label className="text-sm font-medium text-slate-700">Đến ngày</label><Input type="date" value={holidayForm.endDate} onChange={e => setHolidayForm({ ...holidayForm, endDate: e.target.value })} /></div>
                             <div><label className="text-sm font-medium text-slate-700">Ghi chú</label><Input value={holidayForm.note} onChange={e => setHolidayForm({ ...holidayForm, note: e.target.value })} /></div>
                         </div>
-                        <div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setIsAddingHoliday(false)}>Hủy</Button><Button onClick={handleSaveHoliday}>Lưu</Button></div>
+                        <div className="flex justify-end gap-3"><Button variant="outline" onClick={() => { setIsAddingHoliday(false); setEditingId(null); }}>Hủy</Button><Button onClick={handleSaveHoliday}>{editingId ? 'Cập nhật' : 'Lưu'}</Button></div>
                     </CardContent>
                 </Card>
             )}
@@ -106,7 +125,8 @@ const HolidayMessages: React.FC = () => {
                                             </div>
                                             <div className="flex gap-1 shrink-0">
                                                 <Button variant="outline" size="sm" className="gap-1 h-7" onClick={() => notifyHoliday(h)}><Bell className="w-3.5 h-3.5" /> Thông báo</Button>
-                                                <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 px-1 h-7" onClick={() => deleteHoliday(h.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                                <Button variant="ghost" size="sm" className="text-blue-500 hover:text-blue-700 px-1 h-7" title="Sửa" onClick={() => openEdit(h)}><Edit2 className="w-3.5 h-3.5" /></Button>
+                                                <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 px-1 h-7" title="Xóa" onClick={() => deleteHoliday(h)}><Trash2 className="w-3.5 h-3.5" /></Button>
                                             </div>
                                         </div>
                                     );
@@ -121,9 +141,11 @@ const HolidayMessages: React.FC = () => {
                         {pastHolidays.length > 0 ? (
                             <div className="space-y-2">
                                 {pastHolidays.slice(0, 5).map(h => (
-                                    <div key={h.id} className="flex items-center justify-between p-2 text-sm text-slate-500">
-                                        <span>{h.name}</span>
+                                    <div key={h.id} className="flex items-center justify-between gap-2 p-2 text-sm text-slate-500">
+                                        <span className="flex-1">{h.name}</span>
                                         <span className="text-xs">{dayjs(h.startDate).format('DD/MM')} - {dayjs(h.endDate).format('DD/MM')}</span>
+                                        <button title="Sửa" onClick={() => openEdit(h)} className="text-blue-500 hover:text-blue-700 p-1"><Edit2 className="w-3.5 h-3.5" /></button>
+                                        <button title="Xóa" onClick={() => deleteHoliday(h)} className="text-red-400 hover:text-red-600 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
                                     </div>
                                 ))}
                             </div>

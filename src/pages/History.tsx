@@ -70,7 +70,7 @@ const History: React.FC = () => {
             title: 'Khôi phục dữ liệu?',
             html: `Bản sao: <b>${snap.name}</b><br/>Lúc: ${snap.createdAt}<br/><br/>⚠️ Dữ liệu hiện tại sẽ bị thay thế. Hãy lưu phiên trước nếu cần.`,
             icon: 'warning', showCancelButton: true, confirmButtonText: 'Khôi phục', cancelButtonText: 'Hủy',
-            confirmButtonColor: '#4f46e5'
+            confirmButtonColor: '#1a8279'
         }).then(r => {
             if (r.isConfirmed) {
                 restoreSnapshot(snap.id);

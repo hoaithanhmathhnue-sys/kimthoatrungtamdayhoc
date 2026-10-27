@@ -197,7 +197,7 @@ const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigat
           <div className="flex-1 px-5 pb-5 flex flex-col">
             <div className="flex-1 flex items-end gap-3 pt-5">
               {monthlyData.map((d, i) => (
-                <div key={d.name} className="flex-1 relative rounded-t-[4px] min-h-[20px] group cursor-pointer transition-all hover:opacity-80" style={{ height: `${Math.max((d.value / maxMonthValue) * 100, 5)}%`, backgroundColor: i % 2 === 0 ? '#4A90E2' : '#93c5fd' }}>
+                <div key={d.name} className="flex-1 relative rounded-t-[4px] min-h-[20px] group cursor-pointer transition-all hover:opacity-80" style={{ height: `${Math.max((d.value / maxMonthValue) * 100, 5)}%`, backgroundColor: i % 2 === 0 ? 'var(--color-blue-500)' : 'var(--color-blue-200)' }}>
                   <span className="absolute -bottom-[20px] left-1/2 -translate-x-1/2 text-[10px] text-slate-500">{d.name}</span>
                   <span className="absolute -top-[20px] left-1/2 -translate-x-1/2 text-[9px] text-slate-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{d.value > 0 ? formatCurrency(d.value) : '0'}</span>
                 </div>
@@ -221,7 +221,7 @@ const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigat
         <div className="w-10 h-10 rounded-[10px] flex shrink-0 items-center justify-center text-white font-bold bg-gradient-to-br from-primary to-accent shadow-sm z-10 cursor-pointer" onClick={getInsights}>
           ✨
         </div>
-        <div className="text-[13px] leading-relaxed text-[#1e40af] z-10">
+        <div className="text-[13px] leading-relaxed text-blue-800 z-10">
           {isLoadingAi ? 'Đang phân tích, vui lòng chờ...' : (
             aiInsight ? aiInsight : (
               <>

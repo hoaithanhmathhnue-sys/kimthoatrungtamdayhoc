@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select, Field, Badge, Modal, StatCard, PageHeader, EmptyRow, BadgeTone } from '../components/ui/Misc';
 import { Lesson, Attendance, MakeupRequest, ParentMessage } from '../types';
-import { ClipboardCheck, Plus, CalendarPlus, ChevronLeft, ChevronRight, ArrowLeft, CheckCircle2, XCircle, Lock, Unlock, Trash2, Ban, Send } from 'lucide-react';
+import { ClipboardCheck, Plus, CalendarPlus, ChevronLeft, ChevronRight, ArrowLeft, CheckCircle2, XCircle, Lock, Unlock, Trash2, Ban, Send, Edit2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -67,6 +67,7 @@ const Lessons: React.FC = () => {
   const [gen, setGen] = useState({ classId: '', fromDate: dayjs().format('YYYY-MM-DD'), count: 8, days: [] as number[], startTime: '18:00', endTime: '19:30', skipHolidays: true });
   // Modal thêm 1 buổi
   const [oneOpen, setOneOpen] = useState(false);
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [one, setOne] = useState({ classId: '', date: dayjs().format('YYYY-MM-DD'), startTime: '18:00', endTime: '19:30', teacherId: '', topic: '', isMakeup: false });
 
   const today = dayjs().format('YYYY-MM-DD');
@@ -135,9 +136,27 @@ const Lessons: React.FC = () => {
     Swal.fire('Đã tạo lịch', `Tạo ${created.length} buổi cho lớp ${cls.name}${skipped ? `, bỏ qua ${skipped} ngày nghỉ lễ` : ''}.`, 'success');
   };
 
+  const openEditLesson = (l: Lesson) => {
+    setEditingLessonId(l.id);
+    setOne({ classId: l.classId, date: l.date, startTime: l.startTime, endTime: l.endTime, teacherId: l.teacherId, topic: l.topic || '', isMakeup: !!l.isMakeup });
+    setOneOpen(true);
+  };
+
   const addOneLesson = () => {
     const cls = data.classes.find(c => c.id === one.classId);
     if (!cls) return Swal.fire('Lỗi', 'Chọn lớp học', 'error');
+    if (one.endTime <= one.startTime) return Swal.fire('Lỗi', 'Giờ kết thúc phải sau giờ bắt đầu', 'error');
+    if (editingLessonId) {
+      updateData(prev => ({
+        lessons: prev.lessons.map(l => l.id === editingLessonId ? { ...l, classId: cls.id, date: one.date, startTime: one.startTime, endTime: one.endTime, teacherId: one.teacherId || cls.teacherId, topic: one.topic, isMakeup: one.isMakeup } : l),
+        // Đổi ngày buổi học → cập nhật ngày của các bản ghi điểm danh / học bù liên quan
+        attendances: prev.attendances.map(a => a.lessonId === editingLessonId ? { ...a, date: one.date, classId: cls.id } : a),
+        makeups: prev.makeups.map(m => m.makeupLessonId === editingLessonId ? { ...m, makeupDate: one.date } : m),
+      }));
+      setOneOpen(false);
+      setEditingLessonId(null);
+      return Swal.fire({ title: 'Đã cập nhật buổi học', icon: 'success', timer: 1200, showConfirmButton: false });
+    }
     const lesson: Lesson = {
       id: uuidv4(), classId: cls.id, date: one.date, startTime: one.startTime, endTime: one.endTime,
       teacherId: one.teacherId || cls.teacherId, roomId: cls.roomId, topic: one.topic,
@@ -405,7 +424,7 @@ const Lessons: React.FC = () => {
         title="Lịch học & Điểm danh"
         subtitle={role.kind === 'teacher' ? `Giáo viên ${actor}: điểm danh từng buổi các lớp được phân công.` : 'Lập lịch từng buổi cho các lớp, theo dõi điểm danh của giáo viên và duyệt.'}
         actions={<>
-          {isManager && <Button variant="outline" onClick={() => { setOne({ ...one, classId: myClasses[0]?.id || '', teacherId: '' }); setOneOpen(true); }} className="gap-2"><Plus className="w-4 h-4" /> Thêm buổi</Button>}
+          {isManager && <Button variant="outline" onClick={() => { setEditingLessonId(null); setOne({ ...one, classId: myClasses[0]?.id || '', teacherId: '', topic: '', isMakeup: false }); setOneOpen(true); }} className="gap-2"><Plus className="w-4 h-4" /> Thêm buổi</Button>}
           {isManager && <Button onClick={() => openGenerate(filterClass !== 'all' ? filterClass : undefined)} className="gap-2"><CalendarPlus className="w-4 h-4" /> Tạo lịch tự động</Button>}
         </>}
       />
@@ -472,6 +491,7 @@ const Lessons: React.FC = () => {
                             <ClipboardCheck className="w-4 h-4" /> {l.attendanceStatus === 'open' ? 'Điểm danh' : 'Xem'}
                           </Button>
                         )}
+                        {isManager && <Button size="sm" variant="ghost" className="text-blue-500 px-2" title="Sửa buổi học" onClick={() => openEditLesson(l)}><Edit2 className="w-4 h-4" /></Button>}
                         {isManager && l.status === 'scheduled' && <Button size="sm" variant="ghost" className="text-amber-600 px-2" title="Hủy buổi" onClick={() => cancelLesson(l)}><Ban className="w-4 h-4" /></Button>}
                         {isManager && <Button size="sm" variant="ghost" className="text-red-400 px-2" title="Xóa" onClick={() => deleteLesson(l)}><Trash2 className="w-4 h-4" /></Button>}
                       </div>
@@ -513,7 +533,7 @@ const Lessons: React.FC = () => {
         </div>
       </Modal>
 
-      <Modal open={oneOpen} title="Thêm buổi học" onClose={() => setOneOpen(false)}>
+      <Modal open={oneOpen} title={editingLessonId ? 'Sửa buổi học' : 'Thêm buổi học'} onClose={() => { setOneOpen(false); setEditingLessonId(null); }}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Lớp học" className="col-span-2">
@@ -534,7 +554,7 @@ const Lessons: React.FC = () => {
             <Field label="Nội dung" className="col-span-2"><Input value={one.topic} onChange={e => setOne({ ...one, topic: e.target.value })} /></Field>
           </div>
           <label className="text-sm text-slate-600 flex items-center gap-2"><input type="checkbox" checked={one.isMakeup} onChange={e => setOne({ ...one, isMakeup: e.target.checked })} /> Đây là buổi dạy bù / học bù</label>
-          <div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setOneOpen(false)}>Hủy</Button><Button onClick={addOneLesson}>Thêm</Button></div>
+          <div className="flex justify-end gap-3"><Button variant="outline" onClick={() => { setOneOpen(false); setEditingLessonId(null); }}>Hủy</Button><Button onClick={addOneLesson}>{editingLessonId ? 'Cập nhật' : 'Thêm'}</Button></div>
         </div>
       </Modal>
     </div>

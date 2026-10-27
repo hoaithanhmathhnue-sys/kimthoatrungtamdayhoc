@@ -72,6 +72,14 @@ const Timetable: React.FC = () => {
         setIsAddingRoom(false);
     };
 
+    const handleRenameRoom = (roomId: string, current: string) => {
+        Swal.fire({ title: 'Đổi tên phòng', input: 'text', inputValue: current, showCancelButton: true, confirmButtonText: 'Lưu', cancelButtonText: 'Hủy' }).then(r => {
+            if (r.isConfirmed && String(r.value || '').trim()) {
+                updateData(prev => ({ rooms: prev.rooms.map(rm => rm.id === roomId ? { ...rm, name: String(r.value).trim() } : rm) }));
+            }
+        });
+    };
+
     const handleDeleteRoom = (roomId: string) => {
         const slotsInRoom = data.timetableSlots.filter(s => s.roomId === roomId).length;
         Swal.fire({
@@ -232,7 +240,8 @@ const Timetable: React.FC = () => {
                                 <div key={rm.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                                     <MapPin className="w-3.5 h-3.5 text-slate-400" />
                                     <span className="font-medium text-slate-700">{rm.name}</span>
-                                    <button onClick={() => handleDeleteRoom(rm.id)} className="text-red-400 hover:text-red-600"><X className="w-3 h-3" /></button>
+                                    <button onClick={() => handleRenameRoom(rm.id, rm.name)} title="Sửa tên phòng" className="text-blue-500 hover:text-blue-700"><Edit2 className="w-3 h-3" /></button>
+                                    <button onClick={() => handleDeleteRoom(rm.id)} title="Xóa phòng" className="text-red-400 hover:text-red-600"><X className="w-3 h-3" /></button>
                                 </div>
                             ))}
                             {rooms.length === 0 && <span className="text-sm text-slate-400 italic">Chưa có phòng</span>}

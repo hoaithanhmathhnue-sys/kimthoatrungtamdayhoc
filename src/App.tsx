@@ -24,8 +24,11 @@ import Reports from './pages/Reports';
 import HolidayMessages from './pages/HolidayMessages';
 import History from './pages/History';
 import Settings from './pages/Settings';
+import AuthorPage from './components/Author';
+import LoginScreen from './components/LoginScreen';
+import { isUnlocked, setUnlocked } from './lib/auth';
 
-function AppContent() {
+function AppContent({ onLock }: { onLock: () => void }) {
   const { data } = useAppContext();
   const [activeTab, setActiveTab] = useState('dashboard');
   const allowedTabs = getNavForRole(data.settings.activeRole).map(n => n.id);
@@ -58,12 +61,13 @@ function AppContent() {
       case 'holidays': return <HolidayMessages />;
       case 'history': return <History />;
       case 'settings': return <Settings />;
+      case 'author': return <AuthorPage />;
       default: return <Dashboard onNavigate={setActiveTab} />;
     }
   };
 
   return (
-    <Layout activeTab={tab} setActiveTab={setActiveTab}>
+    <Layout activeTab={tab} setActiveTab={setActiveTab} onLock={onLock}>
       {/* key theo vai trò để trang được khởi tạo lại khi đổi người dùng */}
       <React.Fragment key={data.settings.activeRole}>{renderContent()}</React.Fragment>
     </Layout>
@@ -71,9 +75,15 @@ function AppContent() {
 }
 
 export default function App() {
+  // Màn hình đăng nhập: phiên mở khóa giữ trong tab hiện tại (sessionStorage)
+  const [unlocked, setUnlockedState] = useState(isUnlocked);
+  const unlock = () => { setUnlocked(true); setUnlockedState(true); };
+  const lock = () => { setUnlocked(false); setUnlockedState(false); };
+
+  if (!unlocked) return <LoginScreen onSuccess={unlock} />;
   return (
     <AppProvider>
-      <AppContent />
+      <AppContent onLock={lock} />
     </AppProvider>
   );
 }

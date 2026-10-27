@@ -1,0 +1,7 @@
+Giáo viên: Trần Thị Kim Thoa
+Trường THPT Hoàng Diệu
+Địa chỉ: Số 1 Mạc Đĩnh Chi, phường Phú Lợi, thành phố Cần Thơ
+
+Tạo màn hình đăng nhập (không hiện user và pass) với:
+user: Trần Thị Kim Thoa
+pass: 12345

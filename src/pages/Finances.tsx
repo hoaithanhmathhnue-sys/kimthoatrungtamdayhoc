@@ -298,7 +298,7 @@ const Finances: React.FC = () => {
               <Trash2 className="w-3.5 h-3.5" /> Xóa {selectedIds.size} mục
             </Button>
           )}
-          <Button onClick={() => { setIsAdding(!isAdding); setEditingId(null); }} className="gap-1 text-xs h-9 bg-gradient-to-r from-blue-600 to-orange-500">
+          <Button onClick={() => { setIsAdding(!isAdding); setEditingId(null); }} className="gap-1 text-xs h-9 bg-gradient-to-r from-blue-600 to-blue-500">
             {isAdding ? '✕ Hủy' : <><Plus className="w-3.5 h-3.5" /> Thu / Chi</>}
           </Button>
         </div>

@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select, Field, Badge, Modal, StatCard, PageHeader, Tabs, EmptyRow, BadgeTone } from '../components/ui/Misc';
 import { CenterPolicies, ClassTransfer, Lesson, MakeupRequest, ParentMessage, Reservation, Transaction, TuitionMode } from '../types';
-import { Wallet, Plus, Bell, CalendarClock, ArrowRightLeft, PauseCircle, PlayCircle, Settings2, CheckCircle2, XCircle } from 'lucide-react';
+import { Wallet, Plus, Bell, CalendarClock, ArrowRightLeft, PauseCircle, PlayCircle, Settings2, CheckCircle2, XCircle, Edit2, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -39,6 +39,19 @@ const StudentServices: React.FC = () => {
     const rcp = resolveRecipient(s);
     return buildMessage(s, type, `${greetingFor(s, rcp)},\n${text(rcp === 'student' ? 'em' : `em ${s.name}`)}\n${CENTER_SHORT_NAME}`, { classId, title, sender: actor, recipient: rcp });
   };
+
+  // Hộp thoại sửa nhanh nhiều trường (ngày / số / chữ)
+  const editForm = async (title: string, fields: { key: string; label: string; type: 'date' | 'number' | 'text'; value: string | number }[]) => {
+    const esc = (v: string | number) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const html = fields.map(f => `<label style="display:block;text-align:left;font-size:13px;margin:10px 0 4px;color:#475569">${f.label}</label><input id="ef-${f.key}" type="${f.type}" value="${esc(f.value)}" class="swal2-input" style="margin:0;width:100%;box-sizing:border-box">`).join('');
+    const r = await Swal.fire({
+      title, html, showCancelButton: true, confirmButtonText: 'Cập nhật', cancelButtonText: 'Hủy', focusConfirm: false,
+      preConfirm: () => Object.fromEntries(fields.map(f => [f.key, (document.getElementById(`ef-${f.key}`) as HTMLInputElement).value])),
+    });
+    return r.isConfirmed ? (r.value as Record<string, string>) : null;
+  };
+  const confirmDelete = async (title: string, text?: string) =>
+    (await Swal.fire({ title, text, icon: 'warning', showCancelButton: true, confirmButtonText: 'Xóa', cancelButtonText: 'Hủy' })).isConfirmed;
 
   // ================= HỌC PHÍ =================
   const [feeClass, setFeeClass] = useState('all');
@@ -87,6 +100,28 @@ const StudentServices: React.FC = () => {
     Swal.fire('Đã thu học phí', `${formatCurrency(amount)} • cộng ${payCalc.sessions} buổi cho ${s.name}`, 'success');
   };
 
+  const payments = data.transactions
+    .filter(t => t.type === 'income' && t.category === 'Học phí' && (feeClass === 'all' || t.relatedClassId === feeClass))
+    .slice().sort((a, b) => b.date.localeCompare(a.date));
+  const editPayment = async (t: Transaction) => {
+    const v = await editForm('Sửa phiếu thu học phí', [
+      { key: 'amount', label: 'Số tiền (VNĐ)', type: 'number', value: t.amount },
+      { key: 'sessions', label: 'Số buổi được cộng', type: 'number', value: t.sessionCount || 0 },
+      { key: 'date', label: 'Ngày thu', type: 'date', value: t.date },
+      { key: 'note', label: 'Ghi chú', type: 'text', value: t.note || '' },
+    ]);
+    if (!v) return;
+    const amount = Math.max(0, Number(v.amount) || 0);
+    const sessions = Math.max(0, Number(v.sessions) || 0);
+    updateData(prev => ({ transactions: prev.transactions.map(x => x.id === t.id ? { ...x, amount, sessionCount: sessions, feePerSession: sessions ? Math.round(amount / sessions) : 0, date: v.date || x.date, note: v.note } : x) }));
+    logActivity('edit', 'transaction', studentName(t.relatedStudentId || ''), `Sửa phiếu thu ${formatCurrency(amount)}`);
+  };
+  const deletePayment = async (t: Transaction) => {
+    if (!(await confirmDelete('Xóa phiếu thu học phí?', 'Số buổi đã cộng từ phiếu này sẽ bị trừ lại.'))) return;
+    updateData(prev => ({ transactions: prev.transactions.filter(x => x.id !== t.id) }));
+    logActivity('delete', 'transaction', studentName(t.relatedStudentId || ''), `Xóa phiếu thu ${formatCurrency(t.amount)}`);
+  };
+
   const remindFees = (rows: typeof feeRows) => {
     const msgs = rows.map(r => notify(r.s.id, 'fee_reminder', 'Nhắc gia hạn học phí', who => `Lớp ${r.cls.name}: ${who} ${r.p.remaining > 0 ? `còn ${r.p.remaining} buổi đã đóng phí` : r.p.remaining === 0 ? 'đã học hết số buổi đã đóng phí' : `đã học vượt ${-r.p.remaining} buổi (${formatCurrency(r.p.debtAmount)})`}. Kính mong gia đình hoàn tất học phí kỳ tiếp theo.`, r.cls.id)).filter(Boolean) as ParentMessage[];
     if (msgs.length === 0) return Swal.fire('Không có học viên cần nhắc', '', 'info');
@@ -104,6 +139,12 @@ const StudentServices: React.FC = () => {
   const [mkChoice, setMkChoice] = useState({ lessonId: '', newDate: today, startTime: '18:00', endTime: '19:30' });
   const [mkNewOpen, setMkNewOpen] = useState(false);
   const [mkNew, setMkNew] = useState({ studentId: '', classId: '', absentDate: today, note: '' });
+  const [editMkId, setEditMkId] = useState<string | null>(null);
+  const openEditMakeup = (m: MakeupRequest) => { setEditMkId(m.id); setMkNew({ studentId: m.studentId, classId: m.classId, absentDate: m.absentDate, note: m.note || '' }); setMkNewOpen(true); };
+  const deleteMakeup = async (m: MakeupRequest) => {
+    if (!(await confirmDelete('Xóa yêu cầu học bù?'))) return;
+    updateData(prev => ({ makeups: prev.makeups.filter(x => x.id !== m.id) }));
+  };
 
   const candidateLessons = (m: MakeupRequest): Lesson[] => {
     const subject = data.classes.find(c => c.id === m.classId)?.subject;
@@ -150,6 +191,12 @@ const StudentServices: React.FC = () => {
 
   const saveNewMakeup = () => {
     if (!mkNew.studentId || !mkNew.classId) return Swal.fire('Lỗi', 'Chọn học viên và lớp', 'error');
+    if (editMkId) {
+      updateData(prev => ({ makeups: prev.makeups.map(m => m.id === editMkId ? { ...m, ...mkNew } : m) }));
+      setMkNewOpen(false);
+      setEditMkId(null);
+      return;
+    }
     updateData(prev => ({ makeups: [...prev.makeups, { id: uuidv4(), studentId: mkNew.studentId, classId: mkNew.classId, absentDate: mkNew.absentDate, note: mkNew.note, status: 'pending', createdAt: today }] }));
     setMkNewOpen(false);
   };
@@ -195,6 +242,27 @@ const StudentServices: React.FC = () => {
     });
   };
 
+  const editTransfer = async (t: ClassTransfer) => {
+    const v = await editForm('Sửa thông tin chuyển lớp', [
+      { key: 'date', label: 'Ngày chuyển', type: 'date', value: t.date },
+      { key: 'converted', label: 'Số buổi ghi nhận ở lớp mới', type: 'number', value: t.convertedSessions },
+      { key: 'diff', label: 'Chênh lệch học phí (VNĐ, âm = dư)', type: 'number', value: t.feeDifference },
+      { key: 'note', label: 'Ghi chú', type: 'text', value: t.note || '' },
+    ]);
+    if (!v) return;
+    updateData(prev => ({ transfers: prev.transfers.map(x => x.id === t.id ? { ...x, date: v.date || x.date, convertedSessions: Math.max(0, Number(v.converted) || 0), feeDifference: Number(v.diff) || 0, note: v.note } : x) }));
+  };
+  // Xóa = hoàn tác chuyển lớp: đưa học viên về lớp cũ
+  const deleteTransfer = async (t: ClassTransfer) => {
+    if (!(await confirmDelete('Xóa (hoàn tác) chuyển lớp?', `Học viên sẽ được đưa về lớp ${className(t.fromClassId)} và số buổi trả về như trước khi chuyển.`))) return;
+    updateData(prev => ({
+      transfers: prev.transfers.filter(x => x.id !== t.id),
+      enrollments: [...prev.enrollments.filter(e => !(e.studentId === t.studentId && (e.classId === t.toClassId || e.classId === t.fromClassId))), { id: uuidv4(), studentId: t.studentId, classId: t.fromClassId, enrolledAt: t.date }],
+      students: prev.students.map(x => x.id === t.studentId && x.classId === t.toClassId ? { ...x, classId: t.fromClassId } : x),
+    }));
+    logActivity('delete', 'student', studentName(t.studentId), `Hoàn tác chuyển lớp ${className(t.fromClassId)} → ${className(t.toClassId)}`);
+  };
+
   // ================= BẢO LƯU =================
   const [rs, setRs] = useState({ studentId: '', classId: '', startDate: today, endDate: dayjs().add(30, 'day').format('YYYY-MM-DD'), reason: '' });
   const rsRemaining = rs.studentId && rs.classId ? computeProgress(data, rs.studentId, rs.classId).remaining : 0;
@@ -212,6 +280,22 @@ const StudentServices: React.FC = () => {
     logActivity('add', 'reservation', studentName(rs.studentId), `Bảo lưu ${className(rs.classId)}`);
     setRs({ ...rs, studentId: '', classId: '', reason: '' });
     Swal.fire('Đã bảo lưu', `${rsRemaining} buổi được giữ lại.`, 'success');
+  };
+
+  const editReservation = async (r: Reservation) => {
+    const v = await editForm('Sửa thông tin bảo lưu', [
+      { key: 'start', label: 'Từ ngày', type: 'date', value: r.startDate },
+      { key: 'end', label: 'Đến ngày', type: 'date', value: r.endDate },
+      { key: 'sessions', label: 'Số buổi bảo lưu', type: 'number', value: r.sessionsReserved },
+      { key: 'reason', label: 'Lý do', type: 'text', value: r.reason || '' },
+    ]);
+    if (!v) return;
+    if (v.end <= v.start) return Swal.fire('Lỗi', 'Ngày kết thúc phải sau ngày bắt đầu', 'error');
+    updateData(prev => ({ reservations: prev.reservations.map(x => x.id === r.id ? { ...x, startDate: v.start, endDate: v.end, sessionsReserved: Math.max(0, Number(v.sessions) || 0), reason: v.reason } : x) }));
+  };
+  const deleteReservation = async (r: Reservation) => {
+    if (!(await confirmDelete('Xóa bản ghi bảo lưu?'))) return;
+    updateData(prev => ({ reservations: prev.reservations.filter(x => x.id !== r.id) }));
   };
 
   const resume = (r: Reservation) => {
@@ -317,6 +401,31 @@ const StudentServices: React.FC = () => {
               </table>
             </div>
           </Card>
+          <Card>
+            <CardHeader><CardTitle>Lịch sử thu học phí ({payments.length})</CardTitle></CardHeader>
+            <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-600 border-b sticky top-0"><tr><th className="px-4 py-3">Ngày</th><th className="px-4 py-3">Học viên</th><th className="px-4 py-3">Lớp</th><th className="px-4 py-3 text-center">Số buổi</th><th className="px-4 py-3 text-right">Số tiền</th><th className="px-4 py-3">Ghi chú</th><th className="px-4 py-3 w-24"></th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {payments.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">{formatShortDate(t.date)}</td>
+                      <td className="px-4 py-3 font-medium">{studentName(t.relatedStudentId || '')}</td>
+                      <td className="px-4 py-3 text-slate-600">{className(t.relatedClassId)}</td>
+                      <td className="px-4 py-3 text-center">{t.sessionCount || '-'}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-emerald-600">{formatCurrency(t.amount)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px] truncate">{t.note || ''}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Button size="sm" variant="ghost" className="px-2 text-blue-500" title="Sửa" onClick={() => editPayment(t)}><Edit2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" className="px-2 text-red-400" title="Xóa" onClick={() => deletePayment(t)}><Trash2 className="w-4 h-4" /></Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {payments.length === 0 && <EmptyRow colSpan={7} text="Chưa có phiếu thu" />}
+                </tbody>
+              </table>
+            </div>
+          </Card>
           <p className="text-xs text-slate-500">Số buổi còn lại = buổi đã đóng (+ quy đổi khi chuyển lớp) − buổi có mặt − buổi học bù đã học{policies.deductUnexcusedAbsence ? ' − buổi vắng không phép' : ''}. Vắng có phép không bị trừ buổi.</p>
         </>
       )}
@@ -329,7 +438,7 @@ const StudentServices: React.FC = () => {
               <option value="all">Tất cả</option>
               {Object.entries(MAKEUP_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </Select>
-            <Button className="gap-1" onClick={() => { setMkNew({ studentId: '', classId: '', absentDate: today, note: '' }); setMkNewOpen(true); }}><Plus className="w-4 h-4" /> Tạo yêu cầu học bù</Button>
+            <Button className="gap-1" onClick={() => { setEditMkId(null); setMkNew({ studentId: '', classId: '', absentDate: today, note: '' }); setMkNewOpen(true); }}><Plus className="w-4 h-4" /> Tạo yêu cầu học bù</Button>
           </div>
           <Card>
             <div className="overflow-x-auto">
@@ -353,7 +462,9 @@ const StudentServices: React.FC = () => {
                         <td className="px-4 py-3 flex gap-1">
                           {(m.status === 'pending' || m.status === 'scheduled') && <Button size="sm" variant="outline" onClick={() => { setScheduling(m); setMkChoice({ lessonId: m.makeupLessonId || '', newDate: today, startTime: '18:00', endTime: '19:30' }); }}>{m.status === 'pending' ? 'Xếp lịch' : 'Đổi lịch'}</Button>}
                           {m.status === 'scheduled' && <Button size="sm" variant="ghost" className="px-2 text-emerald-600" title="Đã học bù" onClick={() => setMakeupStatus(m, 'done')}><CheckCircle2 className="w-4 h-4" /></Button>}
-                          {(m.status === 'pending' || m.status === 'scheduled') && <Button size="sm" variant="ghost" className="px-2 text-red-400" title="Hủy" onClick={() => setMakeupStatus(m, 'cancelled')}><XCircle className="w-4 h-4" /></Button>}
+                          {(m.status === 'pending' || m.status === 'scheduled') && <Button size="sm" variant="ghost" className="px-2 text-amber-500" title="Hủy yêu cầu" onClick={() => setMakeupStatus(m, 'cancelled')}><XCircle className="w-4 h-4" /></Button>}
+                          <Button size="sm" variant="ghost" className="px-2 text-blue-500" title="Sửa" onClick={() => openEditMakeup(m)}><Edit2 className="w-4 h-4" /></Button>
+                          <Button size="sm" variant="ghost" className="px-2 text-red-400" title="Xóa" onClick={() => deleteMakeup(m)}><Trash2 className="w-4 h-4" /></Button>
                         </td>
                       </tr>
                     );
@@ -409,7 +520,7 @@ const StudentServices: React.FC = () => {
             <CardHeader><CardTitle>Lịch sử chuyển lớp ({data.transfers.length})</CardTitle></CardHeader>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-600 border-b"><tr><th className="px-4 py-3">Ngày</th><th className="px-4 py-3">Học viên</th><th className="px-4 py-3">Chuyển</th><th className="px-4 py-3 text-center">Buổi</th><th className="px-4 py-3 text-right">Chênh lệch</th></tr></thead>
+                <thead className="bg-slate-50 text-slate-600 border-b"><tr><th className="px-4 py-3">Ngày</th><th className="px-4 py-3">Học viên</th><th className="px-4 py-3">Chuyển</th><th className="px-4 py-3 text-center">Buổi</th><th className="px-4 py-3 text-right">Chênh lệch</th><th className="px-4 py-3 w-24"></th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.transfers.slice().reverse().map(t => (
                     <tr key={t.id}>
@@ -418,9 +529,13 @@ const StudentServices: React.FC = () => {
                       <td className="px-4 py-3 text-slate-600">{className(t.fromClassId)} → {className(t.toClassId)}</td>
                       <td className="px-4 py-3 text-center">{t.remainingSessions} → {t.convertedSessions}</td>
                       <td className={`px-4 py-3 text-right ${t.feeDifference > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{t.feeDifference ? formatCurrency(t.feeDifference) : '-'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Button size="sm" variant="ghost" className="px-2 text-blue-500" title="Sửa" onClick={() => editTransfer(t)}><Edit2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" className="px-2 text-red-400" title="Xóa / hoàn tác" onClick={() => deleteTransfer(t)}><Trash2 className="w-4 h-4" /></Button>
+                      </td>
                     </tr>
                   ))}
-                  {data.transfers.length === 0 && <EmptyRow colSpan={5} text="Chưa có lượt chuyển lớp" />}
+                  {data.transfers.length === 0 && <EmptyRow colSpan={6} text="Chưa có lượt chuyển lớp" />}
                 </tbody>
               </table>
             </div>
@@ -475,8 +590,10 @@ const StudentServices: React.FC = () => {
                         <td className="px-4 py-3 flex gap-1">
                           {r.status === 'active' && <>
                             <Button size="sm" variant="outline" className="gap-1" onClick={() => resume(r)}><PlayCircle className="w-4 h-4" /> Học lại</Button>
-                            <Button size="sm" variant="ghost" className="px-2 text-red-400" title="Hủy bảo lưu" onClick={() => updateData(prev => ({ reservations: prev.reservations.map(x => x.id === r.id ? { ...x, status: 'cancelled' } : x) }))}><XCircle className="w-4 h-4" /></Button>
+                            <Button size="sm" variant="ghost" className="px-2 text-amber-500" title="Hủy bảo lưu" onClick={() => updateData(prev => ({ reservations: prev.reservations.map(x => x.id === r.id ? { ...x, status: 'cancelled' } : x) }))}><XCircle className="w-4 h-4" /></Button>
                           </>}
+                          <Button size="sm" variant="ghost" className="px-2 text-blue-500" title="Sửa" onClick={() => editReservation(r)}><Edit2 className="w-4 h-4" /></Button>
+                          <Button size="sm" variant="ghost" className="px-2 text-red-400" title="Xóa" onClick={() => deleteReservation(r)}><Trash2 className="w-4 h-4" /></Button>
                         </td>
                       </tr>
                     );
@@ -581,7 +698,7 @@ const StudentServices: React.FC = () => {
         )}
       </Modal>
 
-      <Modal open={mkNewOpen} title="Tạo yêu cầu học bù" onClose={() => setMkNewOpen(false)}>
+      <Modal open={mkNewOpen} title={editMkId ? 'Sửa yêu cầu học bù' : 'Tạo yêu cầu học bù'} onClose={() => { setMkNewOpen(false); setEditMkId(null); }}>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Học viên" className="col-span-2">
             <Select value={mkNew.studentId} onChange={e => setMkNew({ ...mkNew, studentId: e.target.value, classId: getStudentClassIds(data, e.target.value)[0] || '' })}>
@@ -598,7 +715,7 @@ const StudentServices: React.FC = () => {
           <Field label="Ngày vắng"><Input type="date" value={mkNew.absentDate} onChange={e => setMkNew({ ...mkNew, absentDate: e.target.value })} /></Field>
           <Field label="Ghi chú" className="col-span-2"><Input value={mkNew.note} onChange={e => setMkNew({ ...mkNew, note: e.target.value })} /></Field>
         </div>
-        <div className="flex justify-end gap-3 mt-4"><Button variant="outline" onClick={() => setMkNewOpen(false)}>Hủy</Button><Button onClick={saveNewMakeup}>Tạo</Button></div>
+        <div className="flex justify-end gap-3 mt-4"><Button variant="outline" onClick={() => setMkNewOpen(false)}>Hủy</Button><Button onClick={saveNewMakeup}>{editMkId ? 'Cập nhật' : 'Tạo'}</Button></div>
       </Modal>
     </div>
   );

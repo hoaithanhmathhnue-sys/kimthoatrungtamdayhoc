@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { LayoutDashboard, Users, GraduationCap, Calendar, Clock, BookMarked, DollarSign, Calculator, BarChart3, CalendarOff, History, Settings as SettingsIcon, Menu, X, Search, Library, ClipboardCheck, FileText, TrendingUp, MessagesSquare, Wallet, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Users, GraduationCap, Calendar, Clock, BookMarked, DollarSign, Calculator, BarChart3, CalendarOff, History, Settings as SettingsIcon, Menu, X, Search, Library, ClipboardCheck, FileText, TrendingUp, MessagesSquare, Wallet, UserCircle, BadgeInfo, LogOut } from 'lucide-react';
+import { AuthorModal } from './Author';
+import { AUTHOR } from '../lib/author';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppContext } from '../store/AppContext';
@@ -10,6 +12,7 @@ interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  onLock: () => void;
 }
 
 type RoleKind = 'manager' | 'teacher' | 'parent';
@@ -42,6 +45,7 @@ export const navItems: NavItem[] = [
   { id: 'reports', label: 'Báo cáo', icon: BarChart3, group: 'Tài chính', roles: ['manager'] },
   { id: 'history', label: 'Lịch sử', icon: History, group: 'Hệ thống', roles: ['manager'] },
   { id: 'settings', label: 'Cài đặt', icon: SettingsIcon, group: 'Hệ thống', roles: ['manager'] },
+  { id: 'author', label: 'Tác giả', icon: BadgeInfo, group: 'Hệ thống', roles: ['manager', 'teacher', 'parent'] },
 ];
 
 export const getNavForRole = (role: string) => {
@@ -85,7 +89,7 @@ const SidebarNav: React.FC<{ items: NavItem[]; activeTab: string; onClick: (id: 
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-2.5 rounded-[10px] transition-colors duration-200 font-medium",
                 activeTab === item.id
-                  ? "bg-[#eff6ff] text-primary"
+                  ? "bg-blue-50 text-primary"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               )}
             >
@@ -125,8 +129,9 @@ const RoleSwitcher: React.FC<{ className?: string }> = ({ className }) => {
   );
 };
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLock }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isAuthorOpen, setIsAuthorOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { data } = useAppContext();
@@ -175,7 +180,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-800 overflow-hidden text-[14px]">
+    <div className="flex h-screen bg-[#f4faf9] text-slate-800 overflow-hidden text-[14px]">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-[250px] flex-col bg-white border-r border-[#e2e8f0] z-20 h-full">
         <div className="px-5 pt-5 pb-3 flex items-center gap-[10px] font-[800] tracking-tight leading-tight">
@@ -190,11 +195,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
           <SidebarNav items={visibleNav} activeTab={activeTab} onClick={handleNavClick} counts={counts} />
         </nav>
 
-        <div className="p-4 mt-auto">
-          <div className="bg-slate-100 p-3 rounded-lg text-[11px] text-slate-500">
-            Hệ thống quản lý v3.0.0<br />
-            Tri Thức Việt Edu
-          </div>
+        <div className="p-3 mt-auto">
+          <button onClick={() => setIsAuthorOpen(true)} title="Thông tin tác giả" className="w-full flex items-center gap-2.5 bg-slate-50 hover:bg-blue-50 border border-slate-100 p-2.5 rounded-xl text-left transition-colors">
+            <img src={AUTHOR.avatar} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm" />
+            <div className="min-w-0 leading-tight">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wide">Tác giả • v3.1</div>
+              <div className="text-[12px] font-semibold text-slate-700 truncate">{AUTHOR.name}</div>
+              <div className="text-[10px] text-slate-500 truncate">{AUTHOR.school}</div>
+            </div>
+          </button>
         </div>
       </aside>
 
@@ -210,6 +219,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
               <Search className="w-5 h-5" />
             </button>
           )}
+          <button onClick={onLock} className="p-2 text-slate-600" title="Khóa màn hình">
+            <LogOut className="w-5 h-5" />
+          </button>
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600">
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -278,6 +290,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         )}
       </AnimatePresence>
 
+      <AuthorModal open={isAuthorOpen} onClose={() => setIsAuthorOpen(false)} />
+
       {/* Mobile Menu Backdrop */}
       <AnimatePresence>
         {isMobileMenuOpen && (
@@ -320,6 +334,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                 </button>
               </>
             )}
+            <button onClick={() => setIsAuthorOpen(true)} title="Tác giả" className="shrink-0">
+              <img src={AUTHOR.avatar} alt="Tác giả" className="w-9 h-9 rounded-full object-cover border-2 border-slate-100" />
+            </button>
+            <button onClick={onLock} title="Khóa màn hình / Đăng xuất" className="flex items-center gap-1 text-[13px] text-slate-500 hover:text-red-600">
+              <LogOut className="w-[18px] h-[18px]" /> Khóa
+            </button>
           </div>
         </header>
 

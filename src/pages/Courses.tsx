@@ -121,9 +121,9 @@ const Courses: React.FC = () => {
           const studentIds = new Set(classes.flatMap(cl => getClassStudents(data, cl.id).map(s => s.id)));
           return (
             <Card key={c.id} className="group relative">
-              <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" className="h-8 w-8 p-0 text-blue-500 bg-white/80" onClick={() => openEdit(c)}><Edit2 className="w-4 h-4" /></Button>
-                <Button variant="ghost" className="h-8 w-8 p-0 text-red-500 bg-white/80" onClick={() => remove(c)}><Trash2 className="w-4 h-4" /></Button>
+              <div className="absolute top-3 right-3 flex gap-1 z-10">
+                <Button variant="ghost" className="h-8 w-8 p-0 text-blue-600 bg-white/90 border border-slate-200" title="Sửa" onClick={() => openEdit(c)}><Edit2 className="w-4 h-4" /></Button>
+                <Button variant="ghost" className="h-8 w-8 p-0 text-red-500 bg-white/90 border border-slate-200" title="Xóa" onClick={() => remove(c)}><Trash2 className="w-4 h-4" /></Button>
               </div>
               <CardHeader className="bg-gradient-to-br from-indigo-50 to-white border-b border-indigo-100/60 items-start">
                 <div className="pr-16">

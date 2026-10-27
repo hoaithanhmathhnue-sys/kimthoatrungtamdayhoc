@@ -2,11 +2,37 @@
 
 @theme {
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --color-primary: #4A90E2;
-  --color-accent: #FF9500;
+  --color-primary: #1a8279;
+  --color-accent: #f2a65a;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
+
+  /* Giao diện xanh mòng két nhẹ nhàng: thay thang màu blue/indigo dùng trong toàn app.
+     Mức 600 (nút chính) giữ tương phản ≥ 4.5:1 với chữ trắng. */
+  --color-blue-50: #f0faf9;
+  --color-blue-100: #d5f2ee;
+  --color-blue-200: #ade4dd;
+  --color-blue-300: #7fd1c8;
+  --color-blue-400: #4bb8ad;
+  --color-blue-500: #2a9d92;
+  --color-blue-600: #1a8279;
+  --color-blue-700: #156a63;
+  --color-blue-800: #135650;
+  --color-blue-900: #124843;
+  --color-blue-950: #072b28;
+
+  --color-indigo-50: #effafb;
+  --color-indigo-100: #d3f1f4;
+  --color-indigo-200: #a9e2e9;
+  --color-indigo-300: #74ccd7;
+  --color-indigo-400: #42afbf;
+  --color-indigo-500: #2894a6;
+  --color-indigo-600: #1d7a8c;
+  --color-indigo-700: #1a6373;
+  --color-indigo-800: #19525f;
+  --color-indigo-900: #184550;
+  --color-indigo-950: #0c2b33;
 }
 
 @layer base {
@@ -16,17 +42,24 @@
 }
 
 .sleek-shadow {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 12px rgba(19, 86, 80, 0.07);
 }
 
 .sleek-gradient-text {
-  background: linear-gradient(135deg, #4A90E2 0%, #FF9500 100%);
+  background: linear-gradient(135deg, #156a63 0%, #42afbf 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .sleek-ai-panel {
-  background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%);
-  border: 1px solid #dbeafe;
+  background: linear-gradient(90deg, var(--color-blue-50) 0%, #ffffff 100%);
+  border: 1px solid var(--color-blue-100);
 }
 
+/* Hộp thoại SweetAlert theo màu chủ đạo */
+.swal2-styled.swal2-confirm {
+  background-color: var(--color-blue-600) !important;
+}
+.swal2-styled.swal2-confirm:focus {
+  box-shadow: 0 0 0 3px var(--color-blue-200) !important;
+}

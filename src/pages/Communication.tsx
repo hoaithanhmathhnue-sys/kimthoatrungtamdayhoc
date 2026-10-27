@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select, Field, Badge, Modal, StatCard, PageHeader, Tabs, EmptyRow, Textarea, BadgeTone } from '../components/ui/Misc';
 import { Feedback, MessageType, ParentMessage, Student } from '../types';
-import { MessagesSquare, Send, Copy, CheckCheck, Eye, Plus, Inbox } from 'lucide-react';
+import { MessagesSquare, Send, Copy, CheckCheck, Eye, Plus, Inbox, Edit2, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -117,6 +117,19 @@ const Communication: React.FC = () => {
   const unconfirmed = allMine.filter(m => (m.status || 'sent') === 'sent').length;
   const readCount = allMine.filter(m => m.status === 'read').length;
 
+  const [editMsg, setEditMsg] = useState<ParentMessage | null>(null);
+  const saveEditMsg = () => {
+    if (!editMsg || !editMsg.content.trim()) return Swal.fire('Thiếu nội dung', '', 'warning');
+    updateData(prev => ({ parentMessages: prev.parentMessages.map(m => m.id === editMsg.id ? { ...m, title: editMsg.title, content: editMsg.content, type: editMsg.type, channel: editMsg.channel } : m) }));
+    setEditMsg(null);
+    Swal.fire({ title: 'Đã cập nhật thông báo', icon: 'success', timer: 1000, showConfirmButton: false });
+  };
+  const deleteMsg = (m: ParentMessage) => {
+    Swal.fire({ title: 'Xóa thông báo?', text: 'Thông báo sẽ không còn hiển thị trên Cổng phụ huynh.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Xóa', cancelButtonText: 'Hủy' }).then(r => {
+      if (r.isConfirmed) updateData(prev => ({ parentMessages: prev.parentMessages.filter(x => x.id !== m.id) }));
+    });
+  };
+
   const markDelivered = (ids: string[]) => {
     updateData(prev => ({ parentMessages: prev.parentMessages.map(m => ids.includes(m.id) && (m.status || 'sent') === 'sent' ? { ...m, status: 'delivered', deliveredAt: nowStr() } : m) }));
   };
@@ -125,6 +138,7 @@ const Communication: React.FC = () => {
   const [fbFilter, setFbFilter] = useState<'open' | 'all' | Feedback['status']>('open');
   const [fbOpen, setFbOpen] = useState(false);
   const [fbForm, setFbForm] = useState<Partial<Feedback>>({});
+  const [editFbId, setEditFbId] = useState<string | null>(null);
   const [handling, setHandling] = useState<Feedback | null>(null);
   const [responseText, setResponseText] = useState('');
 
@@ -167,13 +181,32 @@ const Communication: React.FC = () => {
     Swal.fire({ title: status === 'resolved' ? 'Đã xử lý & gửi trả lời' : 'Đã cập nhật', icon: 'success', timer: 1200, showConfirmButton: false });
   };
 
+  const openEditFeedback = (f: Feedback) => { setEditFbId(f.id); setFbForm({ ...f }); setFbOpen(true); };
+  const deleteFeedback = (f: Feedback) => {
+    Swal.fire({ title: 'Xóa phản hồi?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Xóa', cancelButtonText: 'Hủy' }).then(r => {
+      if (r.isConfirmed) updateData(prev => ({ feedbacks: prev.feedbacks.filter(x => x.id !== f.id) }));
+    });
+  };
+
   const openNewFeedback = () => {
+    setEditFbId(null);
     setFbForm({ studentId: myStudents[0]?.id || '', fromRole: 'guardian', category: 'feedback', channel: 'phone', content: '', fromName: myStudents[0]?.parentName || '' });
     setFbOpen(true);
   };
   const saveFeedback = () => {
     const s = data.students.find(x => x.id === fbForm.studentId);
     if (!s || !fbForm.content) return Swal.fire('Lỗi', 'Chọn học viên và nhập nội dung', 'error');
+    if (editFbId) {
+      updateData(prev => ({
+        feedbacks: prev.feedbacks.map(f => f.id === editFbId ? {
+          ...f, studentId: s.id, fromName: fbForm.fromName || f.fromName, fromRole: fbForm.fromRole || f.fromRole, category: fbForm.category || f.category,
+          channel: fbForm.channel || f.channel, content: fbForm.content!, history: [...(f.history || []), { at: nowStr(), by: actor, action: 'Sửa nội dung phản hồi' }],
+        } : f),
+      }));
+      setFbOpen(false);
+      setEditFbId(null);
+      return;
+    }
     const fb: Feedback = {
       id: uuidv4(), studentId: s.id, fromName: fbForm.fromName || (fbForm.fromRole === 'student' ? s.name : s.parentName), fromRole: fbForm.fromRole || 'guardian',
       category: fbForm.category || 'feedback', content: fbForm.content, channel: fbForm.channel || 'phone', createdAt: nowStr(),
@@ -315,7 +348,7 @@ const Communication: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 text-slate-600 border-b">
-                  <tr><th className="px-4 py-3">Thời gian</th><th className="px-4 py-3">Học viên / Người nhận</th><th className="px-4 py-3">Loại</th><th className="px-4 py-3">Tiêu đề</th><th className="px-4 py-3">Kênh</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3 w-24"></th></tr>
+                  <tr><th className="px-4 py-3">Thời gian</th><th className="px-4 py-3">Học viên / Người nhận</th><th className="px-4 py-3">Loại</th><th className="px-4 py-3">Tiêu đề</th><th className="px-4 py-3">Kênh</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3 w-40"></th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {messages.map(m => {
@@ -336,6 +369,8 @@ const Communication: React.FC = () => {
                         <td className="px-4 py-3 flex gap-1">
                           <Button size="sm" variant="ghost" className="px-2" onClick={() => setViewMsg(m)} title="Xem"><Eye className="w-4 h-4" /></Button>
                           {st === 'sent' && <Button size="sm" variant="ghost" className="px-2 text-blue-600" onClick={() => markDelivered([m.id])} title="Xác nhận đã nhận"><CheckCheck className="w-4 h-4" /></Button>}
+                          <Button size="sm" variant="ghost" className="px-2 text-blue-500" onClick={() => setEditMsg({ ...m })} title="Sửa"><Edit2 className="w-4 h-4" /></Button>
+                          <Button size="sm" variant="ghost" className="px-2 text-red-400" onClick={() => deleteMsg(m)} title="Xóa"><Trash2 className="w-4 h-4" /></Button>
                         </td>
                       </tr>
                     );
@@ -385,6 +420,10 @@ const Communication: React.FC = () => {
                       {f.status === 'new' && <Button size="sm" onClick={() => receive(f)}>Tiếp nhận</Button>}
                       {f.status !== 'resolved' && <Button size="sm" variant="outline" onClick={() => openHandle(f)}>Xử lý / Trả lời</Button>}
                       {f.status === 'resolved' && <Button size="sm" variant="ghost" onClick={() => updateFb(f.id, { status: 'processing' }, 'Mở lại để xử lý tiếp')}>Mở lại</Button>}
+                      <span className="flex gap-1 md:justify-end">
+                        <Button size="sm" variant="ghost" className="px-2 text-blue-500" title="Sửa" onClick={() => openEditFeedback(f)}><Edit2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" className="px-2 text-red-400" title="Xóa" onClick={() => deleteFeedback(f)}><Trash2 className="w-4 h-4" /></Button>
+                      </span>
                     </div>
                   </div>
                 </Card>
@@ -414,6 +453,29 @@ const Communication: React.FC = () => {
         })()}
       </Modal>
 
+      <Modal open={!!editMsg} title="Sửa thông báo" onClose={() => setEditMsg(null)}>
+        {editMsg && (
+          <div className="space-y-4">
+            <div className="text-sm text-slate-500">Học viên: {studentName(editMsg.studentId)}</div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Loại">
+                <Select value={editMsg.type} onChange={e => setEditMsg({ ...editMsg, type: e.target.value as MessageType })}>
+                  {(Object.keys(MESSAGE_TYPE_LABELS) as MessageType[]).map(t => <option key={t} value={t}>{MESSAGE_TYPE_LABELS[t]}</option>)}
+                </Select>
+              </Field>
+              <Field label="Kênh">
+                <Select value={editMsg.channel} onChange={e => setEditMsg({ ...editMsg, channel: e.target.value as ParentMessage['channel'] })}>
+                  <option value="app">Cổng phụ huynh</option><option value="zalo">Zalo</option><option value="sms">SMS</option><option value="manual">Gọi điện / Trực tiếp</option>
+                </Select>
+              </Field>
+            </div>
+            <Field label="Tiêu đề"><Input value={editMsg.title || ''} onChange={e => setEditMsg({ ...editMsg, title: e.target.value })} /></Field>
+            <Field label="Nội dung"><Textarea className="min-h-[140px]" value={editMsg.content} onChange={e => setEditMsg({ ...editMsg, content: e.target.value })} /></Field>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditMsg(null)}>Hủy</Button><Button onClick={saveEditMsg}>Cập nhật</Button></div>
+          </div>
+        )}
+      </Modal>
+
       <Modal open={!!handling} title="Xử lý phản hồi" onClose={() => setHandling(null)}>
         {handling && (
           <div className="space-y-4">
@@ -430,7 +492,7 @@ const Communication: React.FC = () => {
         )}
       </Modal>
 
-      <Modal open={fbOpen} title="Ghi nhận phản hồi" onClose={() => setFbOpen(false)}>
+      <Modal open={fbOpen} title={editFbId ? 'Sửa phản hồi' : 'Ghi nhận phản hồi'} onClose={() => setFbOpen(false)}>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Học viên" className="col-span-2">
             <Select value={fbForm.studentId} onChange={e => { const s = data.students.find(x => x.id === e.target.value); setFbForm({ ...fbForm, studentId: e.target.value, fromName: fbForm.fromRole === 'student' ? s?.name : s?.parentName }); }}>
@@ -446,11 +508,12 @@ const Communication: React.FC = () => {
           <Field label="Tên"><Input value={fbForm.fromName || ''} onChange={e => setFbForm({ ...fbForm, fromName: e.target.value })} /></Field>
           <Field label="Loại">
             <Select value={fbForm.category} onChange={e => setFbForm({ ...fbForm, category: e.target.value as Feedback['category'] })}>
-              {Object.entries(FEEDBACK_CATEGORY).filter(([k]) => k !== 'reply').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {Object.entries(FEEDBACK_CATEGORY).filter(([k]) => k !== 'reply' || fbForm.category === 'reply').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
           </Field>
           <Field label="Kênh">
             <Select value={fbForm.channel} onChange={e => setFbForm({ ...fbForm, channel: e.target.value as Feedback['channel'] })}>
+              {editFbId && <option value="portal">Cổng PH</option>}
               <option value="phone">Điện thoại</option><option value="zalo">Zalo</option><option value="sms">SMS</option><option value="direct">Trực tiếp</option>
             </Select>
           </Field>

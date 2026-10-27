@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select, Field, Badge, Modal, StatCard, PageHeader, Tabs, EmptyRow, Textarea, BadgeTone } from '../components/ui/Misc';
 import { Assignment, AssignmentSubmission, Exam, ExamResult, GradeRecord, ParentMessage } from '../types';
-import { FileText, Plus, ArrowLeft, Send, CheckCircle2, XCircle, Bell, Trash2, Unlock } from 'lucide-react';
+import { FileText, Plus, ArrowLeft, Send, CheckCircle2, XCircle, Bell, Trash2, Unlock, Edit2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -45,6 +45,8 @@ const Assessments: React.FC = () => {
   const [asgForm, setAsgForm] = useState<Partial<Assignment>>({});
   const [examOpen, setExamOpen] = useState(false);
   const [examForm, setExamForm] = useState<Partial<Exam>>({});
+  const [editAsgId, setEditAsgId] = useState<string | null>(null);
+  const [editExamId, setEditExamId] = useState<string | null>(null);
 
   const inFilter = (classId: string) => myClassIds.includes(classId) && (filterClass === 'all' || filterClass === classId);
   const assignments = data.assignments.filter(a => inFilter(a.classId)).sort((a, b) => b.assignedDate.localeCompare(a.assignedDate));
@@ -53,15 +55,24 @@ const Assessments: React.FC = () => {
 
   // ===== Bài tập =====
   const openNewAssignment = () => {
+    setEditAsgId(null);
     setAsgForm({ classId: filterClass !== 'all' ? filterClass : myClasses[0]?.id || '', title: '', description: '', assignedDate: dayjs().format('YYYY-MM-DD'), dueDate: dayjs().add(3, 'day').format('YYYY-MM-DD'), maxScore: 10 });
     setAsgOpen(true);
   };
   const saveAssignment = () => {
     if (!asgForm.classId || !asgForm.title) return Swal.fire('Lỗi', 'Chọn lớp và nhập tên bài tập', 'error');
-    updateData(prev => ({ assignments: [...prev.assignments, { ...asgForm, id: uuidv4() } as Assignment] }));
-    logActivity('add', 'assignment', asgForm.title || '', className(asgForm.classId));
+    if (editAsgId) {
+      updateData(prev => ({ assignments: prev.assignments.map(a => a.id === editAsgId ? { ...a, ...asgForm } as Assignment : a) }));
+      logActivity('edit', 'assignment', asgForm.title || '', className(asgForm.classId));
+    } else {
+      updateData(prev => ({ assignments: [...prev.assignments, { ...asgForm, id: uuidv4() } as Assignment] }));
+      logActivity('add', 'assignment', asgForm.title || '', className(asgForm.classId));
+    }
     setAsgOpen(false);
+    setEditAsgId(null);
   };
+  const editAssignment = (a: Assignment) => { setEditAsgId(a.id); setAsgForm({ ...a }); setAsgOpen(true); };
+
   const openAssignment = (a: Assignment) => {
     const d: Record<string, Partial<AssignmentSubmission>> = {};
     data.submissions.filter(s => s.assignmentId === a.id).forEach(s => { d[s.studentId] = { ...s }; });
@@ -76,17 +87,36 @@ const Assessments: React.FC = () => {
 
   // ===== Kiểm tra =====
   const openNewExam = () => {
+    setEditExamId(null);
     setExamForm({ classId: filterClass !== 'all' ? filterClass : myClasses[0]?.id || '', title: '', examType: EXAM_TYPES[1], date: dayjs().format('YYYY-MM-DD'), maxScore: 10 });
     setExamOpen(true);
   };
   const saveExam = () => {
     if (!examForm.classId || !examForm.title) return Swal.fire('Lỗi', 'Chọn lớp và nhập tên bài kiểm tra', 'error');
+    if (editExamId) {
+      const cls = data.classes.find(c => c.id === examForm.classId);
+      updateData(prev => ({
+        exams: prev.exams.map(e => e.id === editExamId ? { ...e, title: examForm.title!, examType: examForm.examType!, date: examForm.date!, maxScore: examForm.maxScore || 10, classId: examForm.classId! } : e),
+        // Đồng bộ điểm đã công bố của bài này
+        grades: prev.grades.map(g => {
+          if (g.examId !== editExamId) return g;
+          const r = prev.exams.find(e => e.id === editExamId)?.results.find(x => x.studentId === g.studentId);
+          return { ...g, examType: examForm.examType!, date: examForm.date!, classId: examForm.classId!, subject: cls?.subject || g.subject, score: r?.score !== undefined ? Math.round((r.score / (examForm.maxScore || 10)) * 100) / 10 : g.score };
+        }),
+      }));
+      logActivity('edit', 'exam', examForm.title || '', className(examForm.classId));
+      setExamOpen(false);
+      setEditExamId(null);
+      return;
+    }
     const exam = { ...examForm, id: uuidv4(), status: 'draft', createdBy: actor, results: [] } as Exam;
     updateData(prev => ({ exams: [...prev.exams, exam] }));
     logActivity('add', 'exam', exam.title, className(exam.classId));
     setExamOpen(false);
     openExam(exam);
   };
+  const editExam = (e: Exam) => { setEditExamId(e.id); setExamForm({ ...e }); setExamOpen(true); };
+
   const openExam = (e: Exam) => {
     const d: Record<string, ExamResult> = {};
     e.results.forEach(r => { d[r.studentId] = { ...r }; });
@@ -362,7 +392,10 @@ const Assessments: React.FC = () => {
                       <td className="px-4 py-3 text-center font-semibold text-blue-600">{a}</td>
                       <td className="px-4 py-3"><Badge tone={EXAM_STATUS[e.status].tone}>{EXAM_STATUS[e.status].label}</Badge>{e.notifiedAt && <Badge tone="blue" className="ml-1">Đã báo PH</Badge>}</td>
                       <td className="px-4 py-3" onClick={ev => ev.stopPropagation()}>
-                        {(isManager || e.status === 'draft') && <Button size="sm" variant="ghost" className="text-red-400 px-2" onClick={() => deleteExam(e)}><Trash2 className="w-4 h-4" /></Button>}
+                        {(isManager || e.status === 'draft' || e.status === 'rejected') && <span className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="text-blue-500 px-2" title="Sửa thông tin" onClick={() => editExam(e)}><Edit2 className="w-4 h-4" /></Button>
+                          <Button size="sm" variant="ghost" className="text-red-400 px-2" title="Xóa" onClick={() => deleteExam(e)}><Trash2 className="w-4 h-4" /></Button>
+                        </span>}
                       </td>
                     </tr>
                   );
@@ -379,7 +412,7 @@ const Assessments: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-600 border-b">
-                <tr><th className="px-4 py-3">Bài tập</th><th className="px-4 py-3">Lớp</th><th className="px-4 py-3">Giao</th><th className="px-4 py-3">Hạn nộp</th><th className="px-4 py-3">Tỷ lệ nộp</th><th className="px-4 py-3 w-16"></th></tr>
+                <tr><th className="px-4 py-3">Bài tập</th><th className="px-4 py-3">Lớp</th><th className="px-4 py-3">Giao</th><th className="px-4 py-3">Hạn nộp</th><th className="px-4 py-3">Tỷ lệ nộp</th><th className="px-4 py-3 w-24"></th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {assignments.map(a => {
@@ -397,7 +430,10 @@ const Assessments: React.FC = () => {
                         <div className="text-xs text-slate-500 mb-1">{done}/{total} ({pct}%)</div>
                         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
                       </td>
-                      <td className="px-4 py-3" onClick={ev => ev.stopPropagation()}><Button size="sm" variant="ghost" className="text-red-400 px-2" onClick={() => deleteAssignment(a)}><Trash2 className="w-4 h-4" /></Button></td>
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={ev => ev.stopPropagation()}>
+                        <Button size="sm" variant="ghost" className="text-blue-500 px-2" title="Sửa" onClick={() => editAssignment(a)}><Edit2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" className="text-red-400 px-2" title="Xóa" onClick={() => deleteAssignment(a)}><Trash2 className="w-4 h-4" /></Button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -408,7 +444,7 @@ const Assessments: React.FC = () => {
         </Card>
       )}
 
-      <Modal open={asgOpen} title="Giao bài tập" onClose={() => setAsgOpen(false)}>
+      <Modal open={asgOpen} title={editAsgId ? 'Sửa bài tập' : 'Giao bài tập'} onClose={() => setAsgOpen(false)}>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Lớp" className="col-span-2">
             <Select value={asgForm.classId} onChange={e => setAsgForm({ ...asgForm, classId: e.target.value })}>
@@ -422,10 +458,10 @@ const Assessments: React.FC = () => {
           <Field label="Thang điểm"><Input type="number" min={1} value={asgForm.maxScore} onChange={e => setAsgForm({ ...asgForm, maxScore: Number(e.target.value) })} /></Field>
           <Field label="Yêu cầu / Mô tả" className="col-span-2"><Textarea value={asgForm.description} onChange={e => setAsgForm({ ...asgForm, description: e.target.value })} /></Field>
         </div>
-        <div className="flex justify-end gap-3 mt-4"><Button variant="outline" onClick={() => setAsgOpen(false)}>Hủy</Button><Button onClick={saveAssignment}>Giao bài</Button></div>
+        <div className="flex justify-end gap-3 mt-4"><Button variant="outline" onClick={() => setAsgOpen(false)}>Hủy</Button><Button onClick={saveAssignment}>{editAsgId ? 'Cập nhật' : 'Giao bài'}</Button></div>
       </Modal>
 
-      <Modal open={examOpen} title="Tạo bài kiểm tra" onClose={() => setExamOpen(false)}>
+      <Modal open={examOpen} title={editExamId ? 'Sửa thông tin bài kiểm tra' : 'Tạo bài kiểm tra'} onClose={() => setExamOpen(false)}>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Lớp" className="col-span-2">
             <Select value={examForm.classId} onChange={e => setExamForm({ ...examForm, classId: e.target.value })}>
@@ -442,7 +478,7 @@ const Assessments: React.FC = () => {
           <Field label="Ngày kiểm tra"><Input type="date" value={examForm.date} onChange={e => setExamForm({ ...examForm, date: e.target.value })} /></Field>
           <Field label="Thang điểm"><Input type="number" min={1} value={examForm.maxScore} onChange={e => setExamForm({ ...examForm, maxScore: Number(e.target.value) })} /></Field>
         </div>
-        <div className="flex justify-end gap-3 mt-4"><Button variant="outline" onClick={() => setExamOpen(false)}>Hủy</Button><Button onClick={saveExam}>Tạo & nhập điểm</Button></div>
+        <div className="flex justify-end gap-3 mt-4"><Button variant="outline" onClick={() => setExamOpen(false)}>Hủy</Button><Button onClick={saveExam}>{editExamId ? 'Cập nhật' : 'Tạo & nhập điểm'}</Button></div>
       </Modal>
     </div>
   );
